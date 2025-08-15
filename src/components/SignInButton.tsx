@@ -34,7 +34,7 @@ export function SignInWithGoogle() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: window.location.origin, 
+        redirectTo: 'https://forum-production-659a.up.railway.app/', 
       },
     });
 
