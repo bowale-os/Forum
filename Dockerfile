@@ -1,26 +1,20 @@
 # Stage 1: Build the React application
-# Use a Node.js image with a specific version for consistency
 FROM node:18-alpine AS build
 
-# Set the working directory inside the container
 WORKDIR /app
 
-# Copy package.json and package-lock.json to install dependencies
+# Install dependencies and then copy the source code
 # This is a performance optimization, as it allows Docker to cache this layer
-COPY package*.json ./
-
-# Install project dependencies
+COPY package.json package-lock.json ./
 RUN npm install
 
 # Copy the rest of the application source code
 COPY . .
 
 # Build the application for production
-# This creates the optimized static files in the 'dist' directory
 RUN npm run build
 
 # Stage 2: Serve the application with a lightweight web server
-# Use a very small image for the final container, like Nginx
 FROM nginx:alpine AS production
 
 # Copy the built files from the 'build' stage to the Nginx public directory
