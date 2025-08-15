@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { supabase } from "../lib/supabaseConfig"; 
+import { supabase } from "../lib/supabaseConfig";
 import { UserActivity } from "./UserActivity";
+import type { Session } from '@supabase/supabase-js';
+import type { Topic, Reply } from '../lib/types';
 
 // A simple loading spinner for visual feedback
 const LoadingSpinner = () => (
@@ -9,8 +11,19 @@ const LoadingSpinner = () => (
     </div>
 );
 
+interface AccountFormProps {
+    user: Session['user'];
+    usernameInput: string;
+    setUsernameInput: React.Dispatch<React.SetStateAction<string>>;
+    loading: boolean;
+    checkingUsername: boolean;
+    isUsernameTaken: boolean;
+    message: string;
+    handleSubmit: (event: React.FormEvent) => Promise<void>;
+}
+
 // Memoize the form component to prevent unnecessary re-renders
-const AccountForm = React.memo(({ user, usernameInput, setUsernameInput, loading, checkingUsername, isUsernameTaken, message, handleSubmit }) => {
+const AccountForm = React.memo(({ user, usernameInput, setUsernameInput, loading, checkingUsername, isUsernameTaken, message, handleSubmit }: AccountFormProps) => {
     return (
         <div className="bg-white p-8 rounded-lg shadow-sm max-w-lg mx-auto">
             <h2 className="text-2xl font-serif text-slate-800 mb-2">Account Settings</h2>
@@ -55,9 +68,13 @@ const AccountForm = React.memo(({ user, usernameInput, setUsernameInput, loading
 });
 
 
-export function Account({ session }) {
+interface AccountProps {
+    session: Session;
+}
+
+export function Account({ session }: AccountProps) {
     const [loading, setLoading] = useState(true);
-    const [username, setUsername] = useState(null);
+    const [username, setUsername] = useState<string | null>(null);
     const [usernameInput, setUsernameInput] = useState('');
     const [message, setMessage] = useState('');
     const [checkingUsername, setCheckingUsername] = useState(false);
@@ -65,8 +82,8 @@ export function Account({ session }) {
     const { user } = session;
 
     // State for the user's posts and replies
-    const [posts, setPosts] = useState(null);
-    const [replies, setReplies] = useState(null);
+    const [posts, setPosts] = useState<Topic[] | null>(null);
+    const [replies, setReplies] = useState<Reply[] | null>(null);
     const [postsLoading, setPostsLoading] = useState(true);
     const [repliesLoading, setRepliesLoading] = useState(true);
 
@@ -80,12 +97,12 @@ export function Account({ session }) {
                 .eq('id', user.id)
                 .single();
 
-            if (error && error.status !== 406) {
+            if (error && (error as any).status !== 406) {
                 console.error("Error fetching user data:", error.message);
                 setMessage('Error loading profile.');
             } else if (data) {
                 setUsername(data.username);
-                setUsernameInput(data.username);
+                setUsernameInput(data.username || "");
             }
             setLoading(false);
         }
@@ -108,7 +125,7 @@ export function Account({ session }) {
                 .from('profiles')
                 .select('username')
                 .eq('username', usernameInput)
-                .maybeSingle(); // Using maybeSingle is better here
+                .maybeSingle();
 
             setCheckingUsername(false);
 
@@ -126,7 +143,6 @@ export function Account({ session }) {
     }, [username, usernameInput]);
 
     // This is the function that will fetch both posts and replies.
-    // It's defined outside a useEffect so it can be called from multiple places.
     const fetchUserActivity = useCallback(async () => {
         setPostsLoading(true);
         setRepliesLoading(true);
@@ -135,27 +151,39 @@ export function Account({ session }) {
             // Fetch posts
             const { data: postsData, error: postsError } = await supabase
                 .from('topics')
-                .select('id, title, content, created_at')
+                .select('id, title, content, created_at, profiles(username)')
                 .eq('writer_id', user.id)
                 .order('created_at', { ascending: false });
             if (postsError) throw postsError;
-            setPosts(postsData);
+            
+            // Transform the data to match our Topic interface
+            const transformedPosts = postsData?.map(post => ({
+                ...post,
+                profiles: post.profiles?.[0] || { username: 'Unknown' }
+            })) || [];
+            setPosts(transformedPosts as Topic[]);
 
             // Fetch replies
             const { data: repliesData, error: repliesError } = await supabase
                 .from('replies')
-                .select('id, content, created_at, topic_id')
+                .select('id, content, created_at, topic_id, profiles(username)')
                 .eq('replier_id', user.id)
                 .order('created_at', { ascending: false });
             if (repliesError) throw repliesError;
-            setReplies(repliesData);
-        } catch (error) {
+            
+            // Transform the data to match our Reply interface
+            const transformedReplies = repliesData?.map(reply => ({
+                ...reply,
+                profiles: reply.profiles?.[0] || { username: 'Unknown' }
+            })) || [];
+            setReplies(transformedReplies as Reply[]);
+        } catch (error: any) {
             console.error("Error fetching user activity:", error.message);
         } finally {
             setPostsLoading(false);
             setRepliesLoading(false);
         }
-    }, [user.id]); // Dependency array to prevent recreating the function unnecessarily
+    }, [user.id]);
 
     // A single useEffect hook to handle the initial fetch of posts and replies
     useEffect(() => {
@@ -164,7 +192,7 @@ export function Account({ session }) {
 
 
     const updateProfile = useCallback(
-        async (event) => {
+        async (event: React.FormEvent) => {
             event.preventDefault();
             
             if (isUsernameTaken) {
@@ -191,7 +219,7 @@ export function Account({ session }) {
                     setUsername(usernameInput);
                     setMessage("Profile updated successfully!");
                 }
-            } catch (error) {
+            } catch (error: any) {
                 setMessage("An unexpected error occurred.");
                 console.error(error);
             } finally {

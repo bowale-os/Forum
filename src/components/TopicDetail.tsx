@@ -1,58 +1,94 @@
 import { useState, useEffect } from "react";
-import { CreateReplyForm } from "./CreateReplyForm"; // Make sure this import is correct
+import { CreateReplyForm } from "./CreateReplyForm";
 import { supabase } from "../lib/supabaseConfig";
+import type { Topic, Reply } from '../lib/types';
 
-
-export function TopicDetail({ topic, onBack }) {
-  const [loading, setLoading] = useState(true);
-  const [fullTopic, setFullTopic] = useState(null);
-  const [replies, setReplies] = useState([]);
-  const [showReplyForm, setShowReplyForm] = useState(false);
-
-  function timeAgo(date) {
-  const seconds = Math.floor((new Date() - new Date(date)) / 1000);
+// Correctly typed the date parameter and logic
+function timeAgo(date: string) {
+  const seconds = Math.floor((new Date().getTime() - new Date(date).getTime()) / 1000);
   let interval = seconds / 31536000;
-  if (interval > 1) return Math.floor(interval) + " years ago";
+  if (interval > 1) {
+    return Math.floor(interval) + " years ago";
+  }
   interval = seconds / 2592000;
-  if (interval > 1) return Math.floor(interval) + " months ago";
+  if (interval > 1) {
+    return Math.floor(interval) + " months ago";
+  }
   interval = seconds / 86400;
-  if (interval > 1) return Math.floor(interval) + " days ago";
+  if (interval > 1) {
+    return Math.floor(interval) + " days ago";
+  }
   interval = seconds / 3600;
-  if (interval > 1) return Math.floor(interval) + " hours ago";
+  if (interval > 1) {
+    return Math.floor(interval) + " hours ago";
+  }
   interval = seconds / 60;
-  if (interval > 1) return Math.floor(interval) + " minutes ago";
+  if (interval > 1) {
+    return Math.floor(interval) + " minutes ago";
+  }
   return Math.floor(seconds) + " seconds ago";
 }
 
+// A simple loading spinner for visual feedback
 const LoadingSpinner = () => (
   <div className="flex justify-center items-center py-10">
     <div className="w-8 h-8 border-2 border-slate-200 border-t-sage-500 rounded-full animate-spin"></div>
   </div>
 );
 
+// Define types for the component's props
+interface TopicDetailProps {
+    topic: Topic;
+    onBack: () => void;
+}
+
+export function TopicDetail({ topic, onBack }: TopicDetailProps) {
+  const [loading, setLoading] = useState(true);
+  const [fullTopic, setFullTopic] = useState<Topic | null>(null);
+  const [replies, setReplies] = useState<Reply[]>([]);
+  const [showReplyForm, setShowReplyForm] = useState(false);
 
   async function fetchTopicAndReplies() {
     if (!topic) return;
     setLoading(true);
 
-    // Fetch both topic and replies at the same time for efficiency
     const [topicRes, repliesRes] = await Promise.all([
       supabase.from('topics').select('*, profiles(username)').eq('id', topic.id).single(),
       supabase.from('replies').select('*, profiles(username)').eq('topic_id', topic.id).order('created_at', { ascending: true })
     ]);
 
     if (topicRes.error) console.error("Error fetching topic:", topicRes.error);
-    else setFullTopic(topicRes.data);
+    else {
+      // Transform the data to match our Topic interface
+      const topicData = topicRes.data;
+      if (topicData) {
+        const transformedTopic: Topic = {
+          ...topicData,
+          profiles: topicData.profiles?.[0] || { username: 'Unknown' }
+        };
+        setFullTopic(transformedTopic);
+      }
+    }
 
     if (repliesRes.error) console.error("Error fetching replies:", repliesRes.error);
-    else setReplies(repliesRes.data);
+    else {
+      // Transform the data to match our Reply interface
+      const repliesData = repliesRes.data;
+      if (repliesData) {
+        const transformedReplies: Reply[] = repliesData.map(reply => ({
+          ...reply,
+          profiles: reply.profiles?.[0] || { username: 'Unknown' }
+        }));
+        setReplies(transformedReplies);
+      }
+    }
 
     setLoading(false);
   }
 
   useEffect(() => {
     fetchTopicAndReplies();
-  }, [topic]);
+  }, [topic.id]);
 
   return (
     <div>

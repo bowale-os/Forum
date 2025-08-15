@@ -3,6 +3,7 @@ import { supabase } from './lib/supabaseConfig';
 import { Account } from './components/UserAccount';
 import { Forum } from './components/Forum';
 import { SignInWithGoogle } from './components/SignInButton';
+import type { Session } from '@supabase/supabase-js';
 
 // A simple loading spinner for the initial app load
 const AppLoader = () => (
@@ -12,7 +13,7 @@ const AppLoader = () => (
 );
 
 function App() {
-  const [session, setSession] = useState(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState('forum'); // 'forum' or 'account'
 

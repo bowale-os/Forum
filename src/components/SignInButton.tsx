@@ -1,6 +1,7 @@
-import { supabase } from "../lib/supabaseConfig";
+import { supabase } from '../lib/supabaseConfig';
 
 // A simple, line-art Google icon component to avoid external image URLs
+// You can replace this with your actual GoogleIcon component if it exists.
 const GoogleIcon = () => (
   <svg
     className="w-5 h-5"
@@ -30,13 +31,16 @@ const GoogleIcon = () => (
 
 export function SignInWithGoogle() {
   const handleSignIn = async () => {
-    const { data, error } = await supabase.auth.signInWithOAuth({
+    const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `http://localhost:5173/`,
+        redirectTo: window.location.origin, 
       },
     });
-    if (error) console.error(error);
+
+    if (error) {
+      console.error('Error signing in with Google:', error);
+    }
   };
 
   return (

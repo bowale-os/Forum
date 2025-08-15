@@ -1,69 +1,81 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { supabase } from '../lib/supabaseConfig';
+import type { Topic, Reply } from '../lib/types';
 
+// A simple loading spinner for visual feedback
 const LoadingSpinner = () => (
     <div className="flex justify-center items-center py-10">
         <div className="w-8 h-8 border-2 border-gray-200 border-t-green-500 rounded-full animate-spin"></div>
     </div>
 );
 
-export const UserActivity = ({ posts, replies, postsLoading, repliesLoading, user, onDataUpdated }) => {
+// Define types for the props of UserActivity
+interface UserActivityProps {
+    posts: Topic[] | null;
+    replies: Reply[] | null;
+    postsLoading: boolean;
+    repliesLoading: boolean;
+    onDataUpdated: () => Promise<void>;
+}
+
+export const UserActivity = ({ posts, replies, postsLoading, repliesLoading, onDataUpdated }: UserActivityProps) => {
     const [activeTab, setActiveTab] = useState('posts');
-    const [editingItem, setEditingItem] = useState(null);
+    const [editingItem, setEditingItem] = useState<Topic | Reply | null>(null);
     const [editedContent, setEditedContent] = useState('');
     const [editedTitle, setEditedTitle] = useState('');
     const [isSaving, setIsSaving] = useState(false);
 
-    const handleEditClick = (item) => {
+    // This function will be triggered when the 'Edit' button is clicked
+    const handleEditClick = (item: Topic | Reply) => {
         setEditingItem(item);
         setEditedContent(item.content);
-        if (item.title) {
+        if ('title' in item) { // Check if the item is a Topic before setting the title
             setEditedTitle(item.title);
         }
     };
 
+    // This function will handle saving the updated post/reply
     const handleSaveClick = async () => {
-    if (!editingItem) return;
-    if (!editedContent.trim() || (activeTab === 'posts' && !editedTitle.trim())) {
-        alert('Title and content cannot be empty.');
-        return;
-    }
-
-    setIsSaving(true);
-    const tableName = activeTab === 'posts' ? 'topics' : 'replies';
-    const updates = {
-        content: editedContent,
-    };
-    console.log(editedContent);
-
-    if (activeTab === 'posts') {
-        updates.title = editedTitle;
-    }
-
-    const { error } = await supabase
-        .from(tableName)
-        .update(updates)
-        .eq('id', editingItem.id);
-
-    if (error) {
-        console.error('Error updating item:', error);
-        setIsSaving(false);
-        alert('Failed to save changes. Please try again.');
-    } else {
-        alert("Edited successfully!");
-        
-        // This is the key change: update the local state directly
-        // The `onDataUpdated` prop is still useful for a full refresh if needed
-        if (onDataUpdated) {
-            await onDataUpdated();
+        if (!editingItem) return;
+        if (!editedContent.trim() || (activeTab === 'posts' && !editedTitle.trim())) {
+            alert('Title and content cannot be empty.');
+            return;
         }
 
-        setEditingItem(null); // Exit edit mode
-        setIsSaving(false);
-    }
-};
+        setIsSaving(true);
+        const tableName = activeTab === 'posts' ? 'topics' : 'replies';
+        const updates: { content: string, title?: string } = {
+            content: editedContent,
+        };
 
-    const renderActivityList = (activity, type) => {
+        if (activeTab === 'posts') {
+            updates.title = editedTitle;
+        }
+
+        const { error } = await supabase
+            .from(tableName)
+            .update(updates)
+            .eq('id', editingItem.id);
+
+        if (error) {
+            console.error('Error updating item:', error);
+            setIsSaving(false);
+            alert('Failed to save changes. Please try again.');
+        } else {
+            alert("Edited successfully!");
+            
+            // This is the key change: update the local state directly
+            // The `onDataUpdated` prop is still useful for a full refresh if needed
+            if (onDataUpdated) {
+                await onDataUpdated();
+            }
+
+            setEditingItem(null); // Exit edit mode
+            setIsSaving(false);
+        }
+    };
+
+    const renderActivityList = (activity: (Topic | Reply)[] | null, type: string) => {
         if (!activity || activity.length === 0) {
             return (
                 <p className="text-center text-gray-500 py-10">
@@ -89,7 +101,7 @@ export const UserActivity = ({ posts, replies, postsLoading, repliesLoading, use
                                     value={editedContent}
                                     onChange={(e) => setEditedContent(e.target.value)}
                                     className="w-full border rounded p-2"
-                                    rows="4"
+                                    rows={4} // Corrected from "4" to {4}
                                 />
                                 <div className="flex justify-end space-x-2">
                                     <button
@@ -110,7 +122,7 @@ export const UserActivity = ({ posts, replies, postsLoading, repliesLoading, use
                             </div>
                         ) : (
                             <>
-                                {type === 'posts' && <h3 className="font-bold text-gray-800 text-lg">{item.title}</h3>}
+                                {type === 'posts' && 'title' in item && <h3 className="font-bold text-gray-800 text-lg">{item.title}</h3>}
                                 <p className="text-sm text-gray-500">{type === 'posts' ? 'Posted on' : 'Replied on'} {new Date(item.created_at).toLocaleDateString()}</p>
                                 <p className="mt-2 text-gray-700">
                                     {item.content}
